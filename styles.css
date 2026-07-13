@@ -208,6 +208,20 @@ textarea:focus, .field:focus { outline: none; border-color: var(--accent); }
 
 /* settings */
 .field-label { display: block; font-size: 13px; color: var(--text-2); margin: 12px 0 6px; }
+.quick-chip.mine { border-color: var(--legs); color: var(--legs); }
+
+/* my foods */
+.mf-empty { font-size: 12px; color: var(--text-3); padding: 4px 0 8px; }
+.mf-item { display: flex; align-items: center; gap: 8px; background: var(--surface-2); border-radius: 10px; padding: 8px 10px; margin-bottom: 7px; }
+.mf-info { flex: 1; min-width: 0; }
+.mf-item .mf-name { font-size: 14px; font-weight: 500; }
+.mf-item .mf-sub { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+.mf-item .icon-btn { width: 32px; height: 32px; font-size: 17px; }
+.mf-item .mf-del { color: #F0997B; }
+.myfood-form { margin-top: 6px; }
+.myfood-form .field { margin-bottom: 8px; }
+.mf-grid { display: grid; grid-template-columns: 1fr 64px 1fr 1fr; gap: 6px; }
+.mf-grid .field { margin-bottom: 8px; }
 .settings-divider { height: 1px; background: var(--line); margin: 18px 0 12px; }
 .settings-note { font-size: 12px; color: var(--text-3); margin-top: 12px; line-height: 1.5; }
 

@@ -164,6 +164,20 @@
       <button class="btn-primary" id="btn-save-goals">Save goals</button>
 
       <div class="settings-divider"></div>
+      <div class="field-label">My foods <span class="section-hint">logged instantly, no AI</span></div>
+      <div id="myfoods-list"></div>
+      <div class="myfood-form">
+        <input id="mf-name" class="field" placeholder="e.g. chicken kabab" />
+        <div class="mf-grid">
+          <input id="mf-amt" class="field" type="number" inputmode="decimal" placeholder="amount" />
+          <select id="mf-unit" class="field"><option value="g">g</option><option value="ml">ml</option><option value="pc">pc</option></select>
+          <input id="mf-kcal" class="field" type="number" inputmode="decimal" placeholder="kcal" />
+          <input id="mf-protein" class="field" type="number" inputmode="decimal" placeholder="protein g" />
+        </div>
+        <button class="btn-ghost" id="mf-add"><i data-ic="plus"></i> <span id="mf-add-label">Save food</span></button>
+      </div>
+
+      <div class="settings-divider"></div>
       <button class="btn-ghost" id="btn-theme"><i data-ic="flame"></i> <span id="theme-label">Yeagerist mode: off</span></button>
       <button class="btn-ghost" id="btn-load-demo"><i data-ic="sparkles"></i> Load a sample week</button>
       <button class="btn-ghost" id="btn-export"><i data-ic="download"></i> Export backup</button>

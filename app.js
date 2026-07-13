@@ -23,6 +23,7 @@ const ICONS = {
   moon:'<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>',
   snack:'<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2a3 3 0 0 0-3 3c0 1 .5 2 1 3-2 1-4 3-4 7a6 6 0 0 0 12 0c0-4-2-6-4-7 .5-1 1-2 1-3a3 3 0 0 0-3-3z"/></svg>',
   flame:'<svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor"><path d="M12 2s5 4 5 9a5 5 0 0 1-10 0c0-1.2.4-2.3 1-3 .1 1.2.9 2 1.8 2 .8 0 1.2-.6 1.2-1.4C11 8 9 6.5 9 4.5 9 3.4 10.5 2.4 12 2z"/></svg>',
+  edit:'<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>',
 };
 function renderIcons(root=document){ root.querySelectorAll('[data-ic]').forEach(el=>{ el.innerHTML = ICONS[el.getAttribute('data-ic')]||''; }); }
 
@@ -48,8 +49,15 @@ const FOODS = [
   { keys:['peanut butter'], unit:'g', def:30, per:{kcal:5.9,p:0.25,c:0.2,f:0.5} },
   { keys:['curd','yogurt','dahi'], unit:'g', def:150, per:{kcal:0.6,p:0.035,c:0.047,f:0.033} },
 ];
+function myFoodMatch(n){
+  const list = (typeof DATA!=='undefined' && DATA.myFoods) || [];
+  for (const f of list){ if (f.name && n.includes(f.name.toLowerCase())){ const a=(+f.amt)||1;
+    return { unit:f.unit, def:f.amt, per:{ kcal:(+f.kcal||0)/a, p:(+f.protein||0)/a, c:(+f.carbs||0)/a, f:(+f.fat||0)/a } }; } }
+  return null;
+}
 function findFood(name){
   const n = name.toLowerCase();
+  const mf = myFoodMatch(n); if (mf) return mf;      // your custom foods win — no API call
   for (const f of FOODS) for (const k of f.keys) if (n.includes(k)) return f;
   return null;
 }
@@ -59,7 +67,7 @@ function macrosFor(food, qty){
 }
 /* parse free text into editable items */
 function parseText(text){
-  const parts = text.split(/[+,]|\band\b|\bwith\b|\n/i).map(s=>s.trim()).filter(Boolean);
+  const parts = text.split(/[+,&]|\band\b|\bn\b|\bwith\b|\n/i).map(s=>s.trim()).filter(Boolean);
   const items = [];
   for (let part of parts){
     const m = part.match(/(\d+(?:\.\d+)?)\s*(ml|g|kg|l|pcs?|pieces?|leg|scoops?)?/i);
@@ -83,6 +91,13 @@ function titleCase(s){ return s.charAt(0).toUpperCase()+s.slice(1); }
    Output: { hint, items:[{name,qty,unit,food}] }  (food carries per-unit macros)
    Falls back to the built-in estimator if the API is unreachable. */
 async function analyze(input){
+  // If everything you typed matches your built-in or custom foods, skip the API entirely.
+  if (input.type==='text'){
+    const local = parseText(input.text);
+    if (local.length && local.every(it=>it.food)){
+      return { hint:'From your saved foods — no AI used. Tweak if you like:', items: local };
+    }
+  }
   try {
     const res = await fetch('/.netlify/functions/analyze', {
       method:'POST',
@@ -113,9 +128,9 @@ async function analyze(input){
 
 /* ---------- storage ---------- */
 const KEY='mgt_data_v1';
-const DEFAULT={ goals:{kcal:2350, protein:150}, days:{} };
+const DEFAULT={ goals:{kcal:2350, protein:150}, days:{}, myFoods:[] };
 let DATA = load();
-function load(){ try{ return Object.assign({}, DEFAULT, JSON.parse(localStorage.getItem(KEY))||{}); }catch(e){ return structuredClone(DEFAULT); } }
+function load(){ try{ const d=Object.assign({}, DEFAULT, JSON.parse(localStorage.getItem(KEY))||{}); if(!Array.isArray(d.myFoods)) d.myFoods=[]; return d; }catch(e){ return structuredClone(DEFAULT); } }
 function save(){ localStorage.setItem(KEY, JSON.stringify(DATA)); }
 function dayKey(d=new Date()){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function getDay(k){ if(!DATA.days[k]) DATA.days[k]={ meals:{breakfast:[],lunch:[],dinner:[],snacks:[]}, gym:null }; return DATA.days[k]; }
@@ -357,9 +372,43 @@ function renderSlotRow(){
 const QUICK=['500ml milk','40g protein powder','100g muesli','2 roti','200g chicken roast','1 chicken leg','2 eggs','300g biriyani'];
 function renderQuickAdds(){
   const q=$('#quick-adds'); q.innerHTML='';
-  for (const s of QUICK){ const c=document.createElement('button'); c.className='quick-chip'; c.textContent=s;
-    c.onclick=()=>{ const inp=$('#food-input'); inp.value = inp.value ? inp.value+' + '+s : s; }; q.appendChild(c); }
+  const mine = (DATA.myFoods||[]).map(f=>({ text:`${f.amt}${f.unit} ${f.name}`, mine:true }));
+  const chips = [...mine, ...QUICK.map(s=>({text:s}))];
+  for (const s of chips){ const c=document.createElement('button'); c.className='quick-chip'+(s.mine?' mine':''); c.textContent=s.text;
+    c.onclick=()=>{ const inp=$('#food-input'); inp.value = inp.value ? inp.value+' + '+s.text : s.text; }; q.appendChild(c); }
 }
+/* ---------- My foods (custom, skip the AI) ---------- */
+let mfEditId=null;
+function renderMyFoods(){
+  const box=$('#myfoods-list'); if(!box) return; box.innerHTML='';
+  const list=DATA.myFoods||[];
+  if(!list.length){ box.innerHTML='<div class="mf-empty">None yet — add one below to log it instantly.</div>'; return; }
+  for(const f of list){
+    const el=document.createElement('div'); el.className='mf-item';
+    el.innerHTML=`<div class="mf-info"><div class="mf-name">${f.name}</div>
+      <div class="mf-sub">${r0(f.amt)}${f.unit} · ${r0(f.kcal)} kcal · ${r0(f.protein)}g P</div></div>
+      <button class="icon-btn mf-edit" aria-label="Edit"><i data-ic="edit"></i></button>
+      <button class="icon-btn mf-del" aria-label="Delete"><i data-ic="x"></i></button>`;
+    el.querySelector('.mf-edit').onclick=()=>loadMyFoodForm(f);
+    el.querySelector('.mf-del').onclick=()=>{ DATA.myFoods=DATA.myFoods.filter(x=>x.id!==f.id); save(); renderMyFoods(); renderQuickAdds(); toast('Removed '+f.name); };
+    box.appendChild(el);
+  }
+  renderIcons(box);
+}
+function loadMyFoodForm(f){
+  mfEditId=f.id;
+  $('#mf-name').value=f.name; $('#mf-amt').value=f.amt; $('#mf-unit').value=f.unit;
+  $('#mf-kcal').value=f.kcal; $('#mf-protein').value=f.protein;
+  $('#mf-add-label').textContent='Update food';
+  $('#mf-name').scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+function resetMyFoodForm(){
+  mfEditId=null;
+  ['mf-name','mf-amt','mf-kcal','mf-protein'].forEach(id=>{ const el=$('#'+id); if(el) el.value=''; });
+  const u=$('#mf-unit'); if(u) u.value='g';
+  const l=$('#mf-add-label'); if(l) l.textContent='Save food';
+}
+
 function switchTab(name){
   $$('.input-tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===name));
   $('#tab-text').classList.toggle('hidden', name!=='text');
@@ -521,7 +570,15 @@ function wire(){
   };
 
   // settings
-  $('#btn-settings').onclick=()=>{ $('#goal-kcal').value=DATA.goals.kcal; $('#goal-protein').value=DATA.goals.protein; $('#settings-backdrop').classList.remove('hidden'); renderIcons($('#settings-backdrop')); };
+  $('#btn-settings').onclick=()=>{ $('#goal-kcal').value=DATA.goals.kcal; $('#goal-protein').value=DATA.goals.protein; resetMyFoodForm(); renderMyFoods(); $('#settings-backdrop').classList.remove('hidden'); renderIcons($('#settings-backdrop')); };
+  $('#mf-add').onclick=()=>{
+    const name=$('#mf-name').value.trim();
+    const amt=+$('#mf-amt').value, kcal=+$('#mf-kcal').value, protein=+$('#mf-protein').value;
+    if(!name || !amt || amt<=0){ toast('Enter a name and amount'); return; }
+    const entry={ id: mfEditId||('f'+Date.now()), name, unit:$('#mf-unit').value, amt, kcal:kcal||0, protein:protein||0, carbs:0, fat:0 };
+    if(mfEditId){ DATA.myFoods=DATA.myFoods.map(x=>x.id===mfEditId?entry:x); } else { DATA.myFoods.push(entry); }
+    save(); resetMyFoodForm(); renderMyFoods(); renderQuickAdds(); toast('Saved '+name);
+  };
   $('#settings-close').onclick=()=>$('#settings-backdrop').classList.add('hidden');
   $('#settings-backdrop').onclick=e=>{ if(e.target.id==='settings-backdrop') $('#settings-backdrop').classList.add('hidden'); };
   $('#btn-save-goals').onclick=()=>{ DATA.goals.kcal=parseInt($('#goal-kcal').value)||2350; DATA.goals.protein=parseInt($('#goal-protein').value)||150; save(); renderToday(); toast('Goals saved'); $('#settings-backdrop').classList.add('hidden'); };

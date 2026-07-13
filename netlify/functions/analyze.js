@@ -3,8 +3,8 @@
    Claude returns structured macros per item. The key is read from the
    ANTHROPIC_API_KEY environment variable set in Netlify (never in the client). */
 
-// Swap to 'claude-haiku-4-5' for ~5x cheaper analysis — plenty accurate for food.
-const MODEL = 'claude-opus-4-8';
+// Haiku 4.5 — fast + cheap, plenty accurate for food. Swap to 'claude-opus-4-8' for max accuracy.
+const MODEL = 'claude-haiku-4-5';
 
 const SCHEMA = {
   type: 'object',
@@ -31,13 +31,19 @@ const SCHEMA = {
   additionalProperties: false
 };
 
-const GUIDE = `You estimate nutrition for meals, including Indian home and street food.
-Break the meal into separate items. For each item return:
-- name: short food name
-- qty + unit: the amount, unit one of "g" (solids), "ml" (liquids), "pc" (countable pieces like roti, egg, chicken leg)
-- kcal, protein, carbs, fat: the TOTAL macros for that quantity (grams for macros), not per-100g
-Be realistic: roadside juices and gravies are often loaded with sugar and oil, restaurant portions are large.
-When the amount is not given, estimate a normal serving. Give your best single estimate — the user will adjust.`;
+const GUIDE = `You estimate calories and protein for meals, including Indian home and street food.
+
+Rules:
+1. SPLIT the meal into one item per distinct food. "and", "n", "&", "with", commas, or newlines separate foods.
+   Example: "4 roti n bhindi sabji 100g" -> TWO items: {roti, 4 pc} and {bhindi sabji, 100 g}.
+2. Countable foods (roti, momo, egg, idli, samosa, paratha, chicken leg, kabab pieces) use unit "pc" and qty = number of pieces. Estimate PER-PIECE macros, then return the TOTAL for all pieces.
+   Example: "10 chicken momos" -> {name:"Chicken momos", qty:10, unit:"pc"}, each momo ~45 kcal & ~3 g protein, so TOTAL ~450 kcal & ~30 g protein.
+3. Solids by weight use "g"; liquids use "ml".
+4. kcal, protein, carbs, fat are the TOTAL for the whole quantity (macros in grams) — never per 100 g.
+5. Be realistic: roadside juices/gravies carry lots of sugar and oil; restaurant portions are large.
+6. If an amount is missing, assume one normal serving.
+For a PHOTO: identify each distinct food, estimate its portion (weight in g, volume in ml, or piece count), then output the same way.
+Give your single best estimate for each item — the user will fine-tune.`;
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method not allowed' };
