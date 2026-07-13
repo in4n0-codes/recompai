@@ -78,28 +78,37 @@ function parseText(text){
 }
 function titleCase(s){ return s.charAt(0).toUpperCase()+s.slice(1); }
 
-/* THE SEAM: replace the body of analyze() with a Gemini call later.
-   Input: {type:'text', text} or {type:'photo', dataUrl}
-   Output: { hint, items:[{name,qty,unit,food}] } */
+/* Analyze food from text or photo via Claude (a Netlify function holds the key).
+   Input:  {type:'text', text} or {type:'photo', dataUrl}
+   Output: { hint, items:[{name,qty,unit,food}] }  (food carries per-unit macros)
+   Falls back to the built-in estimator if the API is unreachable. */
 async function analyze(input){
-  await new Promise(r=>setTimeout(r, 450)); // fake "thinking"
-  if (input.type==='text'){
-    const items = parseText(input.text);
-    return { hint: 'Here’s what I read — tweak any amount, then add it.', items };
+  try {
+    const res = await fetch('/.netlify/functions/analyze', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(input)
+    });
+    if (!res.ok) throw new Error('api '+res.status);
+    const data = await res.json();
+    if (!data.items || !data.items.length) throw new Error('no items');
+    const items = data.items.map(it => {
+      const q = (+it.qty) || 1;
+      return {
+        name: titleCase(it.name || 'Item'),
+        qty: (+it.qty) || (it.unit==='pc' ? 1 : 100),
+        unit: it.unit || 'g',
+        // synthetic food = per-unit macros, so the steppers rescale correctly
+        food: { per: { kcal:(+it.kcal||0)/q, p:(+it.protein||0)/q, c:(+it.carbs||0)/q, f:(+it.fat||0)/q } }
+      };
+    });
+    return { hint: data.hint || 'Here’s what I found — tweak any amount, then add it.', items };
+  } catch(e){
+    if (input.type==='text'){
+      return { hint:'Estimated offline — tweak the amounts:', items: parseText(input.text) };
+    }
+    return { hint:'Photo analysis needs internet. Type the items instead, or add them manually.', items: [] };
   }
-  // photo: mock detection (no key yet). Returns a sensible guess to edit.
-  const guesses = [
-    { hint:'Looks like breakfast. Check the portions:', items:[
-      {name:'Muesli', qty:105, unit:'g', food:findFood('muesli')},
-      {name:'Milk', qty:500, unit:'ml', food:findFood('milk')} ] },
-    { hint:'Looks like a rice meal. Check the portions:', items:[
-      {name:'Biriyani', qty:300, unit:'g', food:findFood('biriyani')},
-      {name:'Chicken leg', qty:1, unit:'pc', food:findFood('chicken leg')} ] },
-    { hint:'Looks like dinner. Check the portions:', items:[
-      {name:'Roti', qty:3, unit:'pc', food:findFood('roti')},
-      {name:'Chicken roast', qty:200, unit:'g', food:findFood('chicken roast')} ] },
-  ];
-  return guesses[Math.floor(Math.random()*guesses.length)];
 }
 
 /* ---------- storage ---------- */
