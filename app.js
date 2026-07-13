@@ -545,6 +545,8 @@ function wire(){
   let tapN=0, tapT;
   $('#brand-title').onclick=()=>{ tapN++; clearTimeout(tapT); tapT=setTimeout(()=>tapN=0,700); if(tapN>=3){ tapN=0; playEpic({scene:'wings', title:pick(TITLE_QUOTES), dur:2600}); } };
   $('#epic').onclick=dismissEpic;
+  $('#summary-close').onclick=closeSummary;
+  $('#summary-backdrop').onclick=e=>{ if(e.target.id==='summary-backdrop') closeSummary(); };
   $('#sheet-close').onclick=closeSheet;
   $('#sheet-backdrop').onclick=e=>{ if(e.target.id==='sheet-backdrop') closeSheet(); };
   $$('.input-tab').forEach(t=>t.onclick=()=>switchTab(t.dataset.tab));
@@ -555,18 +557,19 @@ function wire(){
   $('#btn-save-meal').onclick=()=>{
     if(!currentItems.length){ toast('Nothing to add'); return; }
     const day=getDay(viewDateKey);
-    const mealKcal=sumMeal(currentItems).kcal;
-    const beforeP=sumDay(day).p, beforeStreak=currentStreak(), freedomBefore=isFreedom(day);
-    day.meals[currentSlot].push(...currentItems.map(i=>({name:i.name,qty:i.qty,unit:i.unit,food:i.food})));
+    const slot=currentSlot;
+    const added=currentItems.map(i=>({name:i.name,qty:i.qty,unit:i.unit,food:i.food}));
+    const mealKcal=sumMeal(added).kcal;
+    const beforeStreak=currentStreak(), freedomBefore=isFreedom(day);
+    day.meals[slot].push(...added);
     save();
-    const afterP=sumDay(day).p, afterStreak=currentStreak(), freedomAfter=isFreedom(day);
+    const afterStreak=currentStreak(), freedomAfter=isFreedom(day);
     closeSheet(); renderToday();
     const ms=crossedMilestone(beforeStreak,afterStreak);
     if (mealKcal>1500) playEpic({scene:'colossal', title:'The Colossal Titan appeared', sub:r0(mealKcal)+' kcal in one meal'});
     else if (ms) playEpic({scene:'wall', title:ms});
     else if (!freedomBefore && freedomAfter) playEpic({scene:'wings', title:'Freedom', sub:'Protein hit. Calories on target.'});
-    else if (beforeP<DATA.goals.protein && afterP>=DATA.goals.protein) toast(pick(GOAL_HIT));
-    else toast('Added to '+MEAL_META[currentSlot].label.toLowerCase());
+    else showMealSummary(added, slot);   // the encouraging popup for every normal meal
   };
 
   // settings
@@ -605,6 +608,35 @@ function applyTheme(){
   else document.body.removeAttribute('data-theme');
   const lbl=$('#theme-label'); if(lbl) lbl.textContent='Yeagerist mode: '+(DATA.theme==='yeagerist'?'on':'off');
 }
+
+/* ---------- meal summary popup (encouraging AI note) ---------- */
+async function showMealSummary(items, slot){
+  const t=sumMeal(items);
+  const names=items.map(i=>i.name).join(', ');
+  $('#summary-head').textContent=`${MEAL_META[slot].label}: ${names}`;
+  $('#summary-stats').innerHTML=`<span><b>${r0(t.kcal)}</b> kcal</span><span><b>${r0(t.p)}</b>g protein</span>`;
+  const txt=$('#summary-text'); txt.classList.add('loading'); txt.textContent='One sec…';
+  $('#summary-backdrop').classList.remove('hidden'); renderIcons($('#summary-backdrop'));
+  try {
+    const dt=sumDay(getDay(viewDateKey));
+    const res=await fetch('/.netlify/functions/analyze', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ type:'summary', slot,
+        items: items.map(i=>{ const m=macrosFor(i.food,i.qty); return {name:i.name, qty:r0(i.qty), unit:i.unit, kcal:r0(m.kcal), protein:r0(m.p)}; }),
+        goals: DATA.goals, dayTotals:{ kcal:r0(dt.kcal), protein:r0(dt.p) } }) });
+    if(!res.ok) throw new Error('bad');
+    const data=await res.json();
+    txt.textContent=(data && data.summary) ? data.summary : localSummary(t);
+  } catch(e){ txt.textContent=localSummary(t); }
+  txt.classList.remove('loading');
+}
+function localSummary(t){
+  return pick([
+    `Locked in ${r0(t.p)}g protein and ${r0(t.kcal)} kcal — every logged meal is a rep. Keep going.`,
+    `${r0(t.p)}g protein banked. You showed up, and that's the whole game. Tatakae.`,
+    `Logged. ${r0(t.kcal)} kcal down, momentum up — stack the next one.`
+  ]);
+}
+function closeSummary(){ $('#summary-backdrop').classList.add('hidden'); }
 
 /* ---------- boot ---------- */
 initCal(); wire(); applyTheme(); renderToday();
