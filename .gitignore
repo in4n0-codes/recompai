@@ -1,0 +1,8 @@
+# OS / editor junk
+.DS_Store
+Thumbs.db
+*.log
+node_modules/
+
+# local dev config (not needed for the deployed app)
+.claude/

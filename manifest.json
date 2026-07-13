@@ -1,0 +1,13 @@
+{
+  "name": "Macro + Gym Tracker",
+  "short_name": "Macros",
+  "description": "Photo and text calorie + protein tracker with a gym calendar.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f0f10",
+  "theme_color": "#0f0f10",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

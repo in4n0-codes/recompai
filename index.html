@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#111111" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Macro + Gym Tracker</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- ===== TODAY VIEW ===== -->
+    <section id="view-today" class="view">
+      <header class="topbar">
+        <div class="brand-wrap">
+          <div class="brand" id="brand-title">Recomp<span class="brand-dot">.ai</span></div>
+          <div class="topbar-sub">I will keep moving forward until all of my fats are destroyed</div>
+        </div>
+        <div class="top-actions">
+          <button class="icon-btn" id="btn-calendar" aria-label="Calendar"><i data-ic="calendar"></i></button>
+          <button class="icon-btn" id="btn-settings" aria-label="Settings"><i data-ic="settings"></i></button>
+        </div>
+      </header>
+      <div class="daybar">
+        <button class="date-strip" id="date-strip"></button>
+        <span class="streak" id="streak-chip"></span>
+      </div>
+
+      <div class="rings">
+        <div class="ring-card">
+          <svg viewBox="0 0 42 42" class="ring">
+            <circle class="ring-bg" cx="21" cy="21" r="18.5"></circle>
+            <circle class="ring-fg" id="ring-kcal" cx="21" cy="21" r="18.5" stroke="#378ADD"></circle>
+          </svg>
+          <div class="ring-center">
+            <span class="ring-val" id="kcal-val">0</span>
+            <span class="ring-goal" id="kcal-goal">/ 2350</span>
+          </div>
+          <div class="ring-label">kcal</div>
+        </div>
+        <div class="ring-card">
+          <svg viewBox="0 0 42 42" class="ring">
+            <circle class="ring-bg" cx="21" cy="21" r="18.5"></circle>
+            <circle class="ring-fg" id="ring-protein" cx="21" cy="21" r="18.5" stroke="#1D9E75"></circle>
+          </svg>
+          <div class="ring-center">
+            <span class="ring-val" id="protein-val">0</span>
+            <span class="ring-goal" id="protein-goal">/ 150g</span>
+          </div>
+          <div class="ring-label">protein</div>
+        </div>
+      </div>
+
+      <div class="remaining" id="remaining-banner">
+        <span class="remaining-label" id="remaining-label">Left for today</span>
+        <span class="remaining-val" id="remaining-val">2350 kcal · 150g protein</span>
+      </div>
+
+      <div class="macro-strip" id="macro-strip"></div>
+
+      <div class="section-label">Meals</div>
+      <div id="meal-list"></div>
+
+      <div class="section-label">Gym today <span class="section-hint" id="gym-hint"></span></div>
+      <div class="gym-row" id="gym-row"></div>
+    </section>
+
+    <!-- ===== CALENDAR VIEW ===== -->
+    <section id="view-calendar" class="view hidden">
+      <header class="topbar cal-top">
+        <button class="icon-btn" id="cal-back" aria-label="Back to today"><i data-ic="home"></i></button>
+        <div class="month-nav">
+          <button class="icon-btn" id="month-prev" aria-label="Previous month"><i data-ic="left"></i></button>
+          <div class="month-title" id="month-title">June 2026</div>
+          <button class="icon-btn" id="month-next" aria-label="Next month"><i data-ic="right"></i></button>
+        </div>
+        <span class="top-spacer"></span>
+      </header>
+
+      <div class="month-stat" id="month-stat"></div>
+
+      <div class="week-tabs" id="week-tabs"></div>
+
+      <div class="week-summary">
+        <div class="week-summary-label" id="week-summary-label">Week average</div>
+        <div class="week-summary-stats" id="week-summary-stats"></div>
+      </div>
+
+      <div class="day-grid" id="day-grid"></div>
+
+      <div class="legend">
+        <span><i class="dot" style="background:#F0997B"></i>Push</span>
+        <span><i class="dot" style="background:#85B7EB"></i>Pull</span>
+        <span><i class="dot" style="background:#97C459"></i>Legs</span>
+        <span><i class="dot" style="background:#B4B2A9"></i>Recon</span>
+      </div>
+      <div class="scroll-pad"></div>
+    </section>
+  </div>
+
+  <!-- ===== ADD MEAL SHEET ===== -->
+  <div id="sheet-backdrop" class="backdrop hidden">
+    <div class="sheet" id="add-sheet">
+      <div class="sheet-handle"></div>
+      <div class="sheet-title-row">
+        <h2 class="sheet-title">Log food</h2>
+        <button class="icon-btn" id="sheet-close" aria-label="Close"><i data-ic="x"></i></button>
+      </div>
+
+      <div class="meal-slot-row" id="meal-slot-row"></div>
+
+      <div class="input-tabs">
+        <button class="input-tab active" data-tab="text"><i data-ic="text"></i> Type it</button>
+        <button class="input-tab" data-tab="photo"><i data-ic="camera"></i> Photo</button>
+      </div>
+
+      <!-- TEXT INPUT -->
+      <div id="tab-text" class="tab-pane">
+        <textarea id="food-input" rows="2" placeholder="e.g. 500ml milk + 40g protein powder"></textarea>
+        <div class="quick-adds" id="quick-adds"></div>
+        <button class="btn-primary" id="btn-analyze-text"><i data-ic="sparkles"></i> Analyze</button>
+      </div>
+
+      <!-- PHOTO INPUT -->
+      <div id="tab-photo" class="tab-pane hidden">
+        <label class="photo-drop" id="photo-drop">
+          <input type="file" accept="image/*" capture="environment" id="photo-file" hidden />
+          <img id="photo-preview" alt="" hidden />
+          <div id="photo-placeholder">
+            <i data-ic="camera" class="big-ic"></i>
+            <span>Take or choose a photo</span>
+          </div>
+        </label>
+        <button class="btn-primary" id="btn-analyze-photo"><i data-ic="sparkles"></i> Analyze photo</button>
+      </div>
+
+      <!-- ANALYSIS RESULT -->
+      <div id="analysis-result" class="hidden">
+        <div class="result-hint" id="result-hint"></div>
+        <div id="detected-items"></div>
+        <button class="btn-ghost" id="btn-add-item"><i data-ic="plus"></i> Add another item</button>
+
+        <div class="macro-summary" id="macro-summary"></div>
+        <button class="btn-primary" id="btn-save-meal">Add to <span id="save-slot-name">breakfast</span></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== SETTINGS SHEET ===== -->
+  <div id="settings-backdrop" class="backdrop hidden">
+    <div class="sheet">
+      <div class="sheet-handle"></div>
+      <div class="sheet-title-row">
+        <h2 class="sheet-title">Settings</h2>
+        <button class="icon-btn" id="settings-close" aria-label="Close"><i data-ic="x"></i></button>
+      </div>
+      <label class="field-label">Daily calorie goal</label>
+      <input type="number" id="goal-kcal" class="field" />
+      <label class="field-label">Daily protein goal (g)</label>
+      <input type="number" id="goal-protein" class="field" />
+      <button class="btn-primary" id="btn-save-goals">Save goals</button>
+
+      <div class="settings-divider"></div>
+      <button class="btn-ghost" id="btn-theme"><i data-ic="flame"></i> <span id="theme-label">Yeagerist mode: off</span></button>
+      <button class="btn-ghost" id="btn-load-demo"><i data-ic="sparkles"></i> Load a sample week</button>
+      <button class="btn-ghost" id="btn-export"><i data-ic="download"></i> Export backup</button>
+      <button class="btn-ghost danger" id="btn-clear"><i data-ic="trash"></i> Clear all data</button>
+      <div class="settings-note">Your data lives only on this device's browser. Export a backup so you never lose it.</div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <!-- ===== CINEMATIC OVERLAY ===== -->
+  <div id="epic" class="epic hidden">
+    <div class="epic-stage" id="epic-stage"></div>
+    <div class="epic-text" id="epic-text"></div>
+    <div class="epic-skip">tap to continue</div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

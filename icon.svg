@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#0f0f10"/>
+  <g transform="translate(256 250)">
+    <!-- lower wing (blue) -->
+    <g fill="#2e6fb0">
+      <path d="M0 40 C-40 10 -95 20 -150 70 C-110 55 -80 60 -55 78 C-95 78 -120 100 -150 140 C-100 108 -70 112 -45 120 C-80 128 -100 150 -120 185 C-70 148 -30 132 0 128 Z"/>
+      <path d="M0 40 C40 10 95 20 150 70 C110 55 80 60 55 78 C95 78 120 100 150 140 C100 108 70 112 45 120 C80 128 100 150 120 185 C70 148 30 132 0 128 Z"/>
+    </g>
+    <!-- upper wing (white) -->
+    <g fill="#f4f4f2">
+      <path d="M0 -30 C-38 -55 -92 -52 -145 -18 C-108 -26 -80 -20 -58 -4 C-96 -10 -122 6 -150 44 C-102 12 -66 14 -40 26 C-74 26 -96 44 -114 78 C-66 40 -28 30 0 34 Z"/>
+      <path d="M0 -30 C38 -55 92 -52 145 -18 C108 -26 80 -20 58 -4 C96 -10 122 6 150 44 C102 12 66 14 40 26 C74 26 96 44 114 78 C66 40 28 30 0 34 Z"/>
+    </g>
+    <!-- shield centre -->
+    <path d="M0 -70 L20 -58 L20 20 L0 42 L-20 20 L-20 -58 Z" fill="#0f0f10" stroke="#f4f4f2" stroke-width="6"/>
+  </g>
+  <text x="256" y="440" text-anchor="middle" font-family="system-ui, sans-serif" font-size="52" font-weight="700" fill="#f4f4f2" letter-spacing="1">Recomp.ai</text>
+</svg>
