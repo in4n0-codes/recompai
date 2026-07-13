@@ -1,6 +1,6 @@
 {
-  "name": "Macro + Gym Tracker",
-  "short_name": "Macros",
+  "name": "Recomp.ai",
+  "short_name": "Recomp.ai",
   "description": "Photo and text calorie + protein tracker with a gym calendar.",
   "start_url": "./index.html",
   "display": "standalone",
