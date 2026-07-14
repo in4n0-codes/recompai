@@ -50,10 +50,39 @@ const FOODS = [
   { keys:['curd','yogurt','dahi'], unit:'g', def:150, per:{kcal:0.6,p:0.035,c:0.047,f:0.033} },
 ];
 function myFoodMatch(n){
-  const list = (typeof DATA!=='undefined' && DATA.myFoods) || [];
+  const list = ((typeof DATA!=='undefined' && DATA.myFoods) || []).slice()
+    .sort((a,b)=>(b.name||'').length-(a.name||'').length);   // most specific name wins
   for (const f of list){ if (f.name && n.includes(f.name.toLowerCase())){ const a=(+f.amt)||1;
     return { unit:f.unit, def:f.amt, per:{ kcal:(+f.kcal||0)/a, p:(+f.protein||0)/a, c:(+f.carbs||0)/a, f:(+f.fat||0)/a } }; } }
   return null;
+}
+const STARTER_FOODS=[
+  {name:'Egg', unit:'pc', amt:1, kcal:72, protein:6.3},
+  {name:'Chicken kabab', unit:'g', amt:200, kcal:430, protein:52},
+  {name:'Soya chunks', unit:'g', amt:50, kcal:173, protein:26},
+  {name:'Double egg chicken roll', unit:'pc', amt:1, kcal:850, protein:48},
+  {name:'Nandini milk', unit:'ml', amt:500, kcal:300, protein:16},
+  {name:'Nandini curd', unit:'ml', amt:200, kcal:122, protein:6.8},
+  {name:'Muesli', unit:'g', amt:100, kcal:390, protein:23},
+  {name:'Whey protein', unit:'g', amt:40, kcal:160, protein:23},
+  {name:'EatClub chicken sandwich', unit:'pc', amt:1, kcal:669, protein:41},
+  {name:'EatClub mushroom sandwich', unit:'pc', amt:1, kcal:586, protein:23},
+  {name:'EatClub tangri biryani', unit:'g', amt:500, kcal:900, protein:32},
+  {name:'Roti', unit:'pc', amt:1, kcal:110, protein:3.5},
+  {name:'Dal', unit:'pc', amt:1, kcal:180, protein:11},
+  {name:'Rice', unit:'g', amt:200, kcal:260, protein:5},
+  {name:'Chai', unit:'pc', amt:1, kcal:90, protein:3},
+  {name:'Peanuts', unit:'g', amt:30, kcal:170, protein:7},
+];
+function loadStarterFoods(){
+  let added=0;
+  for (const s of STARTER_FOODS){
+    if (!(DATA.myFoods||[]).some(f=>(f.name||'').toLowerCase()===s.name.toLowerCase())){
+      DATA.myFoods.push({ id:'f'+Date.now()+'_'+added, name:s.name, unit:s.unit, amt:s.amt, kcal:s.kcal, protein:s.protein, carbs:0, fat:0 });
+      added++;
+    }
+  }
+  return added;
 }
 function findFood(name){
   const n = name.toLowerCase();
@@ -620,6 +649,7 @@ function wire(){
     if(mfEditId){ DATA.myFoods=DATA.myFoods.map(x=>x.id===mfEditId?entry:x); } else { DATA.myFoods.push(entry); }
     save(); resetMyFoodForm(); renderMyFoods(); renderQuickAdds(); toast('Saved '+name);
   };
+  $('#mf-starter').onclick=()=>{ const n=loadStarterFoods(); save(); renderMyFoods(); renderQuickAdds(); toast(n?`Added ${n} starter foods`:'All starter foods already added'); };
   $('#settings-close').onclick=()=>$('#settings-backdrop').classList.add('hidden');
   $('#settings-backdrop').onclick=e=>{ if(e.target.id==='settings-backdrop') $('#settings-backdrop').classList.add('hidden'); };
   $('#btn-save-goals').onclick=()=>{ DATA.goals.kcal=parseInt($('#goal-kcal').value)||2350; DATA.goals.protein=parseInt($('#goal-protein').value)||150; save(); renderToday(); toast('Goals saved'); $('#settings-backdrop').classList.add('hidden'); };
@@ -648,34 +678,27 @@ function applyTheme(){
 }
 
 /* ---------- meal summary popup (encouraging AI note) ---------- */
-async function showMealSummary(items, slot){
+function showMealSummary(items, slot){   // no API call — free, instant
   const t=sumMeal(items);
   const names=items.map(i=>i.name).join(', ');
   $('#summary-head').textContent=`${MEAL_META[slot].label}: ${names}`;
   $('#summary-stats').innerHTML=`<span><b>${r0(t.kcal)}</b> kcal</span><span><b>${r0(t.p)}</b>g protein</span>`;
-  const txt=$('#summary-text'); txt.classList.add('loading'); txt.textContent='One sec…';
+  $('#summary-text').textContent=localSummary(t);
   $('#summary-backdrop').classList.remove('hidden'); renderIcons($('#summary-backdrop'));
-  try {
-    const dt=sumDay(getDay(viewDateKey));
-    const res=await fetch('/.netlify/functions/analyze', { method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ type:'summary', slot,
-        items: items.map(i=>{ const m=macrosFor(i.food,i.qty); return {name:i.name, qty:r0(i.qty), unit:i.unit, kcal:r0(m.kcal), protein:r0(m.p)}; }),
-        goals: DATA.goals, dayTotals:{ kcal:r0(dt.kcal), protein:r0(dt.p) } }) });
-    if(!res.ok) throw new Error('bad');
-    const data=await res.json();
-    txt.textContent=(data && data.summary) ? data.summary : localSummary(t);
-  } catch(e){ txt.textContent=localSummary(t); }
-  txt.classList.remove('loading');
 }
 function localSummary(t){
   return pick([
     `Locked in ${r0(t.p)}g protein and ${r0(t.kcal)} kcal — every logged meal is a rep. Keep going.`,
     `${r0(t.p)}g protein banked. You showed up, and that's the whole game. Tatakae.`,
-    `Logged. ${r0(t.kcal)} kcal down, momentum up — stack the next one.`
+    `Logged. ${r0(t.kcal)} kcal down, momentum up — stack the next one.`,
+    `${r0(t.p)}g more toward the goal. Consistency beats everyone still deciding.`,
+    `Meal in the books — protein builds, the deficit trims. Keep moving forward.`,
+    `Nice. ${r0(t.p)}g protein logged; your muscles say thanks. Onto the next.`
   ]);
 }
 function closeSummary(){ $('#summary-backdrop').classList.add('hidden'); }
 
 /* ---------- boot ---------- */
+if (!DATA.seeded){ loadStarterFoods(); DATA.seeded=true; save(); }   // one-time: preload your foods
 initCal(); wire(); applyTheme(); renderToday();
 if ('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
