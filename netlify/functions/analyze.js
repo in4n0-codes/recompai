@@ -36,6 +36,7 @@ REFERENCE ANCHORS (scale for the actual portion and added oil):
 - 100 ml milk: 60 kcal, 3.3 g P
 
 BRANDED: for named brands/outlets (KFC, McDonald's, Domino's, Starbucks, Amul, protein bars, etc.) or packaged products, USE the web_search tool and use the official published figures. For home/generic food do NOT search — use the anchors above.
+QUOTED BRANDS: any text inside double quotes (e.g. "Superyou", "Yoga Bar") is a SPECIFIC brand/product name. You MUST web_search for that exact product's official nutrition label and use those numbers — do not guess.
 
 For a PHOTO: identify each food, estimate its portion (weight, volume, or piece count) from the visible size, then apply the same rules.
 

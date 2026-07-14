@@ -32,7 +32,7 @@ function renderIcons(root=document){ root.querySelectorAll('[data-ic]').forEach(
    analyze() parses "500ml milk + 40g protein powder" into items.
    Swap analyze() to call Gemini later; the UI stays identical. */
 const FOODS = [
-  { keys:['protein powder','whey','protein scoop','protein'], unit:'g', def:30, per:{kcal:3.9,p:0.78,c:0.12,f:0.06} },
+  { keys:['protein powder','whey','protein scoop'], unit:'g', def:30, per:{kcal:3.9,p:0.78,c:0.12,f:0.06} },
   { keys:['milk'], unit:'ml', def:250, per:{kcal:0.6,p:0.033,c:0.048,f:0.033} },
   { keys:['muesli','granola'], unit:'g', def:100, per:{kcal:3.7,p:0.09,c:0.66,f:0.06} },
   { keys:['oats','oatmeal'], unit:'g', def:60, per:{kcal:3.8,p:0.13,c:0.67,f:0.07} },
@@ -74,13 +74,14 @@ function parseText(text){
     let qty=null, unit=null;
     if (m){ qty=parseFloat(m[1]); unit=(m[2]||'').toLowerCase(); }
     const name = part.replace(/(\d+(?:\.\d+)?)\s*(ml|g|kg|l|pcs?|pieces?|leg|scoops?)?/i,'').trim() || part;
-    const food = findFood(name);
+    const mine = myFoodMatch(name);       // only YOUR saved foods count as "instant"
+    const food = mine || findFood(name);
     if (unit==='kg'){ qty*=1000; unit='g'; }
     if (unit==='l'){ qty*=1000; unit='ml'; }
     if (/pc|piece|leg|scoop/.test(unit)) unit = food?food.unit:'pc';
     if (qty==null) qty = food?food.def:100;
     if (!unit) unit = food?food.unit:'g';
-    items.push({ name: titleCase(name), qty, unit, food });
+    items.push({ name: titleCase(name), qty, unit, food, mine: !!mine });
   }
   return items;
 }
@@ -91,10 +92,10 @@ function titleCase(s){ return s.charAt(0).toUpperCase()+s.slice(1); }
    Output: { hint, items:[{name,qty,unit,food}] }  (food carries per-unit macros)
    Falls back to the built-in estimator if the API is unreachable. */
 async function analyze(input){
-  // If everything you typed matches your built-in or custom foods, skip the API entirely.
-  if (input.type==='text'){
+  // If everything you typed matches YOUR saved foods (and there's no "brand"), skip the API.
+  if (input.type==='text' && !/"[^"]+"/.test(input.text||'')){
     const local = parseText(input.text);
-    if (local.length && local.every(it=>it.food)){
+    if (local.length && local.every(it=>it.mine)){
       return { hint:'From your saved foods — no AI used. Tweak if you like:', items: local };
     }
   }
@@ -323,9 +324,9 @@ function renderToday(){
   }
 
   const gymRow=$('#gym-row'); gymRow.innerHTML='';
-  for (const gt of GYM_TYPES){
+  for (const gt of ['push','pull','legs','rest']){
     const b=document.createElement('button');
-    b.className='gym-chip'+(day.gym===gt?' sel':''); b.dataset.g=gt;
+    b.className='gym-chip'+(gt==='rest'?' rest':'')+(day.gym===gt?' sel':''); b.dataset.g=gt;
     b.textContent=GYM_LABEL[gt];
     b.onclick=()=>{
       if (day.gym===gt){ day.gym=null; save(); renderToday(); return; }
@@ -333,7 +334,9 @@ function renderToday(){
       day.gym=gt; save();
       const ms=crossedMilestone(beforeStreak,currentStreak());
       renderToday();
-      if (ms) playEpic({scene:'wall', title:ms}); else toast(pick(SASAGEYO));
+      if (ms) playEpic({scene:'wall', title:ms});
+      else if (gt==='rest') toast('Recovery is part of the plan. 🛌');
+      else toast(pick(SASAGEYO));
     };
     gymRow.appendChild(b);
   }
@@ -369,7 +372,7 @@ function renderSlotRow(){
   }
   $('#save-slot-name').textContent=MEAL_META[currentSlot].label.toLowerCase();
 }
-const QUICK=['500ml milk','40g protein powder','100g muesli','2 roti','200g chicken roast','1 chicken leg','2 eggs','300g biriyani'];
+const QUICK=[]; // no preloaded chips — your "My foods" fill this instead
 function renderQuickAdds(){
   const q=$('#quick-adds'); q.innerHTML='';
   const mine = (DATA.myFoods||[]).map(f=>({ text:`${f.amt}${f.unit} ${f.name}`, mine:true }));
@@ -462,7 +465,7 @@ function updSummary(){
   $('#macro-summary').innerHTML=`
     <div class="ms-top"><span class="ms-kcal">${r0(t.kcal)}</span><span class="ms-kcal-l">kcal for this meal</span></div>
     <div class="ms-grid">
-      <div class="macro-pill mp-p"><div class="v">${r0(t.p)}g</div><div class="k">protein</div></div>
+      <div class="macro-pill mp-p"><input class="ms-pedit" id="ms-pedit" type="number" inputmode="decimal" value="${r0(t.p)}" aria-label="protein grams" /><div class="k">protein · tap to edit</div></div>
       <div class="macro-pill mp-carb"><div class="v">${r0(t.c)}g</div><div class="k">carbs</div></div>
       <div class="macro-pill mp-fat"><div class="v">${r0(t.f)}g</div><div class="k">fat</div></div>
     </div>`;
@@ -471,10 +474,24 @@ function updSummary(){
 /* ============================================================
    CALENDAR VIEW
    ============================================================ */
-let calYear, calMonth, calWeek=0;
-function initCal(){ const n=new Date(); calYear=n.getFullYear(); calMonth=n.getMonth(); calWeek=weekOfMonth(n); }
-function weekOfMonth(d){ return Math.floor((d.getDate()-1)/7); }
-function weeksInMonth(y,m){ return Math.ceil(new Date(y,m+1,0).getDate()/7); }
+let calYear, calMonth, calWeekIdx=0;
+function mondayOf(d){ const x=new Date(d.getFullYear(),d.getMonth(),d.getDate()); x.setDate(x.getDate()-((x.getDay()+6)%7)); return x; }
+// Mon–Sun weeks, each CLIPPED to the month → weeks never span two months.
+function weeksOfMonth(y,m){
+  const last=new Date(y,m+1,0); const out=[]; let d=new Date(y,m,1);
+  while(d<=last){
+    const start=new Date(d);
+    const sun=mondayOf(d); sun.setDate(sun.getDate()+6);
+    const end = sun>last ? new Date(last) : sun;
+    out.push({start, end});
+    d=new Date(end); d.setDate(d.getDate()+1);
+  }
+  return out;
+}
+function resetCalToToday(){ const n=new Date(); calYear=n.getFullYear(); calMonth=n.getMonth();
+  const nk=dayKey(n); const weeks=weeksOfMonth(calYear,calMonth);
+  calWeekIdx=Math.max(0, weeks.findIndex(w=> dayKey(w.start)<=nk && nk<=dayKey(w.end) )); }
+function initCal(){ resetCalToToday(); }
 
 function renderCalendar(){
   $('#month-title').textContent=new Date(calYear,calMonth,1).toLocaleDateString(undefined,{month:'long',year:'numeric'});
@@ -490,27 +507,30 @@ function renderCalendar(){
       <span class="ms-tag pull">${mCount.pull} Pull</span>
       <span class="ms-tag legs">${mCount.legs} Legs</span>
     </div>`;
-  const nWeeks=weeksInMonth(calYear,calMonth);
-  if (calWeek>=nWeeks) calWeek=nWeeks-1;
+  const weeks=weeksOfMonth(calYear,calMonth);
+  calWeekIdx=Math.max(0, Math.min(calWeekIdx, weeks.length-1));
   const tabs=$('#week-tabs'); tabs.innerHTML='';
-  for (let w=0; w<nWeeks; w++){ const b=document.createElement('button'); b.className='week-tab'+(w===calWeek?' sel':''); b.textContent='W'+(w+1);
-    b.onclick=()=>{ calWeek=w; renderCalendar(); }; tabs.appendChild(b); }
+  weeks.forEach((wk,w)=>{
+    const b=document.createElement('button'); b.className='week-tab'+(w===calWeekIdx?' sel':'');
+    b.textContent=`${wk.start.getDate()}–${wk.end.getDate()}`;
+    b.onclick=()=>{ calWeekIdx=w; renderCalendar(); }; tabs.appendChild(b); });
 
-  const daysInM=new Date(calYear,calMonth+1,0).getDate();
-  const start=calWeek*7+1, end=Math.min(start+6,daysInM);
+  const wk=weeks[calWeekIdx];
+  const nDays=Math.round((wk.end-wk.start)/86400000)+1;
   const grid=$('#day-grid'); grid.innerHTML='';
   const todayK=dayKey(); const agg={kcal:[],p:[],gym:0};
-  for (let dnum=start; dnum<=end; dnum++){
-    const dObj=new Date(calYear,calMonth,dnum); const k=dayKey(dObj);
+  const endToday=new Date(new Date().setHours(23,59,59,999));
+  for (let i=0; i<nDays; i++){
+    const dObj=new Date(wk.start); dObj.setDate(wk.start.getDate()+i); const k=dayKey(dObj);
     const has=DATA.days[k]; const t=has?sumDay(has):null; const gym=has?has.gym:null;
     const el=document.createElement('div'); el.className='day-block';
-    const isFuture=dObj>new Date(new Date().setHours(23,59,59,999));
+    const isFuture=dObj>endToday;
     if (k===todayK) el.classList.add('today'); else if (isFuture && !has) el.classList.add('future');
     if (gym && gym!=='rest') el.dataset.g=gym;
     const wd=dObj.toLocaleDateString(undefined,{weekday:'short'});
-    const gymLabel = gym ? GYM_LABEL[gym] : (has ? 'Recon' : (isFuture?'—':'·'));
+    const gymLabel = gym ? GYM_LABEL[gym] : (has ? 'Rest' : (isFuture?'—':'·'));
     const stats = t && t.kcal>0 ? `${r0(t.kcal)} · ${r0(t.p)}g` : (isFuture?'planned':'no log');
-    el.innerHTML=`<div class="db-date">${wd} ${dnum}${k===todayK?' · today':''}</div>
+    el.innerHTML=`<div class="db-date">${wd} ${dObj.getDate()}${k===todayK?' · today':''}</div>
       <div class="db-gym">${gymLabel}</div><div class="db-stats">${stats}</div>`;
     el.onclick=()=>{ viewDateKey=k; showView('today'); renderToday(); };
     grid.appendChild(el);
@@ -519,7 +539,8 @@ function renderCalendar(){
   }
   const avg=a=>a.length?r0(a.reduce((x,y)=>x+y,0)/a.length):0;
   const recap = agg.gym>=5?' · Full deployment 🫡':(agg.gym>=3?' · Survey Corps active':'');
-  $('#week-summary-label').textContent=`Week ${calWeek+1} average (${agg.kcal.length} logged days)${recap}`;
+  const rangeLbl=`${wk.start.toLocaleDateString(undefined,{month:'short',day:'numeric'})}–${wk.end.getDate()}`;
+  $('#week-summary-label').textContent=`Week ${calWeekIdx+1} · ${rangeLbl} · avg of ${agg.kcal.length} logged${recap}`;
   $('#week-summary-stats').innerHTML=
     `<div class="wss">${avg(agg.kcal)}<small> kcal</small></div>
      <div class="wss">${avg(agg.p)}<small> g P</small></div>
@@ -538,7 +559,15 @@ function showView(name){
 
 function wire(){
   renderIcons();
-  $('#btn-calendar').onclick=()=>showView('calendar');
+  $('#btn-clear-day').onclick=()=>{
+    const k=viewDateKey; const label = k===dayKey() ? 'today' : new Date(k).toLocaleDateString(undefined,{day:'numeric',month:'short'});
+    if(confirm(`Clear all meals and gym for ${label}? This restarts the day.`)){
+      DATA.days[k]={ meals:{breakfast:[],lunch:[],dinner:[],snacks:[]}, gym:null }; save(); renderToday(); toast('Day cleared — fresh start.');
+    }
+  };
+  $('#btn-calendar').onclick=()=>{ resetCalToToday(); showView('calendar'); };
+  $('#month-prev').onclick=()=>{ if(calMonth===0){calMonth=11;calYear--;}else calMonth--; calWeekIdx=0; renderCalendar(); };
+  $('#month-next').onclick=()=>{ if(calMonth===11){calMonth=0;calYear++;}else calMonth++; calWeekIdx=0; renderCalendar(); };
   $('#cal-back').onclick=()=>{ viewDateKey=dayKey(); renderToday(); showView('today'); };
   $('#date-strip').onclick=()=>{ if(viewDateKey!==dayKey()){ viewDateKey=dayKey(); renderToday(); } };
   // easter egg: tap the title 3× for a quote
@@ -558,6 +587,15 @@ function wire(){
     if(!currentItems.length){ toast('Nothing to add'); return; }
     const day=getDay(viewDateKey);
     const slot=currentSlot;
+    // apply a manual protein edit (from the green box) onto the first item
+    const pedit=$('#ms-pedit');
+    if (pedit && currentItems.length){
+      const targetP=+pedit.value;
+      if (!isNaN(targetP)){
+        const delta=targetP - sumMeal(currentItems).p;
+        if (Math.abs(delta)>0.5){ const it0=currentItems[0]; const per=Object.assign({kcal:0,p:0,c:0,f:0}, it0.food&&it0.food.per); per.p=per.p+delta/((+it0.qty)||1); it0.food={per}; }
+      }
+    }
     const added=currentItems.map(i=>({name:i.name,qty:i.qty,unit:i.unit,food:i.food}));
     const mealKcal=sumMeal(added).kcal;
     const beforeStreak=currentStreak(), freedomBefore=isFreedom(day);
