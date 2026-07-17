@@ -67,6 +67,8 @@
 
       <div class="section-label">Gym today <span class="section-hint" id="gym-hint"></span></div>
       <div class="gym-row" id="gym-row"></div>
+      <div id="workout-summary"></div>
+      <div class="scroll-pad"></div>
     </section>
 
     <!-- ===== CALENDAR VIEW ===== -->
@@ -100,6 +102,42 @@
       </div>
       <div class="scroll-pad"></div>
     </section>
+
+    <!-- ===== WORKOUT VIEW ===== -->
+    <section id="view-workout" class="view hidden">
+      <header class="topbar cal-top">
+        <button class="icon-btn" id="workout-back" aria-label="Back"><i data-ic="home"></i></button>
+        <div>
+          <div class="workout-title" id="workout-title">Workout</div>
+          <div class="workout-date" id="workout-date"></div>
+        </div>
+        <button class="icon-btn" id="workout-edit" aria-label="Edit exercises"><i data-ic="edit"></i></button>
+      </header>
+      <div id="workout-list"></div>
+      <button class="btn-primary" id="workout-done">Workout done</button>
+      <div class="scroll-pad"></div>
+    </section>
+
+    <!-- ===== EXERCISE DIRECTORY VIEW ===== -->
+    <section id="view-directory" class="view hidden">
+      <header class="topbar cal-top">
+        <button class="icon-btn" id="directory-back" aria-label="Back"><i data-ic="home"></i></button>
+        <div class="month-title">Exercise directory</div>
+        <span class="top-spacer"></span>
+      </header>
+      <div class="dir-note">Your source of truth. Update weight and reps here as you get stronger — the next workout shows your latest numbers.</div>
+      <div id="directory-list"></div>
+      <div class="scroll-pad"></div>
+    </section>
+  </div>
+
+  <!-- ===== WORKOUT CHOOSER ===== -->
+  <div id="chooser-backdrop" class="backdrop hidden">
+    <div class="chooser-card">
+      <div class="chooser-title">What are you doing today?</div>
+      <div class="chooser-btns" id="chooser-btns"></div>
+      <button class="btn-ghost" id="chooser-cancel">Cancel</button>
+    </div>
   </div>
 
   <!-- ===== ADD MEAL SHEET ===== -->
@@ -180,6 +218,7 @@
       </div>
 
       <div class="settings-divider"></div>
+      <button class="btn-ghost" id="btn-directory"><i data-ic="edit"></i> Exercise directory</button>
       <button class="btn-ghost" id="btn-theme"><i data-ic="flame"></i> <span id="theme-label">Yeagerist mode: off</span></button>
       <button class="btn-ghost" id="btn-load-demo"><i data-ic="sparkles"></i> Load a sample week</button>
       <button class="btn-ghost" id="btn-export"><i data-ic="download"></i> Export backup</button>

@@ -158,7 +158,7 @@ async function analyze(input){
 
 /* ---------- storage ---------- */
 const KEY='mgt_data_v1';
-const DEFAULT={ goals:{kcal:2350, protein:150}, days:{}, myFoods:[] };
+const DEFAULT={ goals:{kcal:2350, protein:150}, days:{}, myFoods:[], exercises:{} };
 let DATA = load();
 function load(){ try{ const d=Object.assign({}, DEFAULT, JSON.parse(localStorage.getItem(KEY))||{}); if(!Array.isArray(d.myFoods)) d.myFoods=[]; return d; }catch(e){ return structuredClone(DEFAULT); } }
 function save(){ localStorage.setItem(KEY, JSON.stringify(DATA)); }
@@ -283,8 +283,30 @@ function isFreedom(day){ const t=sumDay(day); return t.p>=DATA.goals.protein && 
    TODAY VIEW
    ============================================================ */
 const MEAL_META={ breakfast:{ic:'coffee',label:'Breakfast'}, lunch:{ic:'bowl',label:'Lunch'}, dinner:{ic:'moon',label:'Dinner'}, snacks:{ic:'snack',label:'Snacks'} };
-const GYM_TYPES=['push','pull','legs'];
-const GYM_LABEL={ push:'Push', pull:'Pull', legs:'Legs', rest:'Rest', cardio:'Cardio' };
+/* ---------- workouts (A/B PPL) + exercise directory ---------- */
+const WORKOUTS=[
+  {id:'push-a',label:'Push A',cat:'push'},
+  {id:'pull-a',label:'Pull A',cat:'pull'},
+  {id:'legs-a',label:'Legs A',cat:'legs'},
+  {id:'push-b',label:'Push B',cat:'push'},
+  {id:'pull-b',label:'Pull B',cat:'pull'},
+  {id:'legs-b',label:'Legs B',cat:'legs'},
+];
+const WORKOUT_LABEL=Object.fromEntries(WORKOUTS.map(w=>[w.id,w.label])); WORKOUT_LABEL['rest']='Rest';
+function gymCat(type){ return !type ? null : (type==='rest' ? 'rest' : type.split('-')[0]); }
+const EXERCISE_SEED={
+  'push-a':[['Bench Press',3,'6-8'],['Shoulder Press',3,'8-10'],['Chest Fly',3,'10-15'],['DB Lateral Raises',3,'12-15'],['Overhead Tricep Extension',3,'10-12'],['Tricep Pushdown',3,'10-12']],
+  'pull-a':[['Lat Pulldown',3,'8-12'],['Seated Row',3,'8-12'],['Reverse Pec Deck',2,'12-15'],['Shrugs',2,'10-15'],['Preacher Curls',2,'10-12'],['Incline DB Curls',2,'10-12']],
+  'legs-a':[['Leg Press',3,'8-12'],['Hip Thrust',2,'10-12'],['Leg Extensions',3,'12-15'],['Lying Leg Curl',3,'10-15'],['Calf Raises',2,'12-20'],['Cardio',1,'10-15 min']],
+  'push-b':[['Chest Fly',3,'10-15'],['Incline DB Press',3,'8-10'],['Cable Lateral Raises',3,'12-15'],['Tricep Pushdown',3,'10-12'],['Overhead Tricep Extension',3,'10-12']],
+  'pull-b':[['Assisted Pull-ups',3,'6-10'],['Chest-Supported Row',3,'8-12'],['Face Pulls',2,'12-15'],['Hyperextensions',2,'12-15'],['Hammer Curls',2,'10-12'],['Bayesian Curls',2,'10-12']],
+  'legs-b':[['Leg Press',3,'8-12'],['Hip Thrust',2,'10-12'],['Lunges',2,'10-12'],['Lying Leg Curl',3,'10-15'],['Calf Raises',2,'12-20'],['Cardio',1,'10-15 min']],
+};
+function seedExercises(){
+  DATA.exercises={};
+  for (const w of WORKOUTS){ DATA.exercises[w.id]=EXERCISE_SEED[w.id].map((e,i)=>({ id:w.id+'_'+i, name:e[0], sets:e[1], reps:e[2], weight:'' })); }
+}
+function escAttr(s){ return String(s==null?'':s).replace(/"/g,'&quot;'); }
 let viewDateKey = dayKey();
 
 function renderToday(){
@@ -338,8 +360,10 @@ function renderToday(){
       el.innerHTML=`<span class="meal-ic" data-ic="${meta.ic}"></span>
         <div class="meal-body"><div class="meal-name">${meta.label}</div>
         <div class="meal-desc">${items.map(i=>i.name).join(', ')}</div></div>
-        <div class="meal-macros"><div class="meal-kcal">${r0(m.kcal)}</div><div class="meal-p">${r0(m.p)}g P</div></div>`;
+        <div class="meal-macros"><div class="meal-kcal">${r0(m.kcal)}</div><div class="meal-p">${r0(m.p)}g P</div></div>
+        <button class="meal-del" aria-label="Delete meal"><i data-ic="x"></i></button>`;
       el.onclick=()=>openSheet(slot);
+      el.querySelector('.meal-del').onclick=(e)=>{ e.stopPropagation(); day.meals[slot]=[]; save(); renderToday(); toast(meta.label+' cleared'); };
     } else {
       el.className='meal empty';
       const emptyDesc = slot==='snacks' ? 'The basement holds the truth — tap to add' : 'Not logged — tap to add';
@@ -353,26 +377,145 @@ function renderToday(){
   }
 
   const gymRow=$('#gym-row'); gymRow.innerHTML='';
-  for (const gt of ['push','pull','legs','rest']){
+  const cat=gymCat(day.gym);
+  const CATLBL={push:'Push',pull:'Pull',legs:'Legs',rest:'Rest'};
+  for (const c of ['push','pull','legs','rest']){
     const b=document.createElement('button');
-    b.className='gym-chip'+(gt==='rest'?' rest':'')+(day.gym===gt?' sel':''); b.dataset.g=gt;
-    b.textContent=GYM_LABEL[gt];
-    b.onclick=()=>{
-      if (day.gym===gt){ day.gym=null; save(); renderToday(); return; }
-      const beforeStreak=currentStreak();
-      day.gym=gt; save();
-      const ms=crossedMilestone(beforeStreak,currentStreak());
-      renderToday();
-      if (ms) playEpic({scene:'wall', title:ms});
-      else if (gt==='rest') toast('Recovery is part of the plan. 🛌');
-      else toast(pick(SASAGEYO));
-    };
+    b.className='gym-chip'+(c==='rest'?' rest':'')+(cat===c?' sel':''); b.dataset.g=c;
+    b.textContent=CATLBL[c];
+    b.onclick=()=> c==='rest' ? logRest() : openWorkoutChooser(c);
     gymRow.appendChild(b);
   }
-  $('#gym-hint').textContent = day.gym ? '' : 'tap what you did';
+  $('#gym-hint').textContent = day.gym ? '' : 'tap to start';
+  renderWorkoutSummary(day);
   renderIcons(list); renderIcons($('#macro-strip'));
 }
 function setRing(sel,frac){ const C=2*Math.PI*18.5; const f=Math.max(0,Math.min(frac,1)); $(sel).style.strokeDasharray=`${(f*C).toFixed(1)} ${C.toFixed(1)}`; }
+
+/* ============================================================
+   WORKOUTS  (chooser -> workout screen -> log)
+   ============================================================ */
+let currentWorkoutType=null;
+
+function logRest(){
+  const day=getDay(viewDateKey); const before=currentStreak();
+  day.gym='rest'; day.workout=null; save();
+  const ms=crossedMilestone(before,currentStreak());
+  renderToday();
+  if (ms) playEpic({scene:'wall', title:ms}); else toast('Recovery is part of the plan. 🛌');
+}
+function openWorkoutChooser(cat){
+  const label={push:'Push',pull:'Pull',legs:'Legs'}[cat];
+  const box=$('#chooser-btns'); box.innerHTML='';
+  for (const v of ['a','b']){
+    const id=cat+'-'+v; const b=document.createElement('button');
+    b.className='chooser-opt'; b.dataset.g=cat; b.textContent=`${label} ${v.toUpperCase()}`;
+    b.onclick=()=>{ closeChooser(); startWorkout(id); };
+    box.appendChild(b);
+  }
+  $('#chooser-backdrop').classList.remove('hidden');
+}
+function closeChooser(){ $('#chooser-backdrop').classList.add('hidden'); }
+
+function startWorkout(type){
+  const day=getDay(viewDateKey);
+  if (!day.workout || day.workout.type!==type){
+    day.workout={ type, done:false, exercises:(DATA.exercises[type]||[]).map(e=>({
+      name:e.name, weight:e.weight, reps:e.reps, sets:Math.max(1,+e.sets||1), done:new Array(Math.max(1,+e.sets||1)).fill(false)
+    })) };
+    day.gym=type; save();
+  }
+  currentWorkoutType=type;
+  showView('workout');
+}
+function renderWorkout(){
+  const day=getDay(viewDateKey); const w=day.workout;
+  if (!w){ showView('today'); return; }
+  $('#workout-title').textContent=WORKOUT_LABEL[w.type]||'Workout';
+  const isToday=viewDateKey===dayKey();
+  $('#workout-date').textContent=isToday?'Today':new Date(viewDateKey).toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'});
+  const box=$('#workout-list'); box.innerHTML='';
+  w.exercises.forEach((ex,ei)=>{
+    const el=document.createElement('div'); el.className='wk-ex';
+    const sets=ex.done.map((d,si)=>`<button class="set-box${d?' on':''}" data-ei="${ei}" data-si="${si}">${si+1}</button>`).join('');
+    el.innerHTML=`<div class="wk-ex-head">
+        <div class="wk-ex-name">${escAttr(ex.name)}</div>
+        <div class="wk-ex-meta"><span class="wk-w">${ex.weight!==''&&ex.weight!=null?ex.weight+' kg':'— kg'}</span> · <span class="wk-r">${escAttr(ex.reps)} reps</span></div>
+      </div>
+      <div class="set-row">${sets}</div>`;
+    box.appendChild(el);
+  });
+  box.querySelectorAll('.set-box').forEach(btn=>btn.onclick=()=>{
+    const ei=+btn.dataset.ei, si=+btn.dataset.si; const dd=day.workout.exercises[ei].done;
+    dd[si]=!dd[si]; save(); btn.classList.toggle('on', dd[si]);
+  });
+  $('#workout-done').textContent = w.done ? 'Logged ✓ — tap to re-log' : 'Workout done';
+}
+function finishWorkout(){
+  const day=getDay(viewDateKey); if(!day.workout) return;
+  const before=currentStreak();
+  day.workout.done=true; day.gym=day.workout.type; save();
+  const ms=crossedMilestone(before,currentStreak());
+  const sets=day.workout.exercises.reduce((a,e)=>a+e.done.filter(Boolean).length,0);
+  showView('today'); renderToday();
+  if (ms) playEpic({scene:'wall', title:ms});
+  else toast(`${WORKOUT_LABEL[day.workout.type]} logged — ${sets} sets. Sasageyo!`);
+}
+function renderWorkoutSummary(day){
+  const box=$('#workout-summary'); if(!box) return;
+  const w=day.workout;
+  if (!w){ box.innerHTML=''; return; }
+  const totalSets=w.exercises.reduce((a,e)=>a+e.sets,0);
+  const doneSets=w.exercises.reduce((a,e)=>a+e.done.filter(Boolean).length,0);
+  const rows=w.exercises.map(e=>{
+    const dn=e.done.filter(Boolean).length;
+    return `<div class="ws-row"><span class="ws-name">${escAttr(e.name)}</span>
+      <span class="ws-meta">${e.weight!==''&&e.weight!=null?e.weight+'kg':'—'} · ${escAttr(e.reps)} · ${dn}/${e.sets}</span></div>`;
+  }).join('');
+  box.innerHTML=`<div class="ws-card" data-g="${gymCat(w.type)}">
+    <div class="ws-head"><span class="ws-title">${WORKOUT_LABEL[w.type]}</span>
+      <span class="ws-status">${w.done?'✓ done':`${doneSets}/${totalSets} sets`}</span></div>
+    ${rows}
+    <button class="btn-ghost ws-open">Open workout</button>
+  </div>`;
+  box.querySelector('.ws-open').onclick=()=>startWorkout(w.type);
+}
+
+/* ---------- exercise directory (edit) ---------- */
+function renderDirectory(){
+  const box=$('#directory-list'); if(!box) return; box.innerHTML='';
+  for (const w of WORKOUTS){
+    const sec=document.createElement('div'); sec.className='dir-sec';
+    const head=document.createElement('div'); head.className='dir-sec-title'; head.dataset.g=w.cat; head.textContent=w.label;
+    sec.appendChild(head);
+    (DATA.exercises[w.id]||[]).forEach((ex,ei)=>{
+      const row=document.createElement('div'); row.className='dir-ex';
+      row.innerHTML=`
+        <div class="dir-top">
+          <input class="field dir-name" value="${escAttr(ex.name)}" placeholder="Exercise name" />
+          <button class="icon-btn dir-del" aria-label="Delete"><i data-ic="trash"></i></button>
+        </div>
+        <div class="dir-grid">
+          <label>Weight<input class="field" type="number" inputmode="decimal" value="${escAttr(ex.weight)}" placeholder="kg" data-f="weight" /></label>
+          <label>Reps<input class="field" value="${escAttr(ex.reps)}" placeholder="8-12" data-f="reps" /></label>
+          <label>Sets<input class="field" type="number" inputmode="numeric" value="${escAttr(ex.sets)}" placeholder="3" data-f="sets" /></label>
+        </div>
+        <label class="dir-move">Move to <select class="field dir-assign">${WORKOUTS.map(x=>`<option value="${x.id}"${x.id===w.id?' selected':''}>${x.label}</option>`).join('')}</select></label>`;
+      row.querySelector('.dir-name').oninput=e=>{ ex.name=e.target.value; save(); };
+      row.querySelectorAll('[data-f]').forEach(inp=>inp.oninput=()=>{
+        const f=inp.dataset.f; ex[f]= f==='sets' ? Math.max(1,parseInt(inp.value)||1) : inp.value; save();
+      });
+      row.querySelector('.dir-assign').onchange=e=>{ const t=e.target.value; if(t!==w.id){ DATA.exercises[w.id].splice(ei,1); (DATA.exercises[t]=DATA.exercises[t]||[]).push(ex); save(); renderDirectory(); } };
+      row.querySelector('.dir-del').onclick=()=>{ DATA.exercises[w.id].splice(ei,1); save(); renderDirectory(); };
+      sec.appendChild(row);
+    });
+    const add=document.createElement('button'); add.className='btn-ghost dir-add'; add.innerHTML='<i data-ic="plus"></i> Add exercise';
+    add.onclick=()=>{ (DATA.exercises[w.id]=DATA.exercises[w.id]||[]).push({ id:w.id+'_'+Date.now(), name:'New exercise', sets:3, reps:'8-12', weight:'' }); save(); renderDirectory(); };
+    sec.appendChild(add);
+    box.appendChild(sec);
+  }
+  renderIcons(box);
+}
 
 /* ============================================================
    ADD-MEAL SHEET
@@ -492,7 +635,7 @@ function renderDetected(){
 function updSummary(){
   const t=sumMeal(currentItems);
   $('#macro-summary').innerHTML=`
-    <div class="ms-top"><span class="ms-kcal">${r0(t.kcal)}</span><span class="ms-kcal-l">kcal for this meal</span></div>
+    <div class="ms-top"><input class="ms-kedit" id="ms-kedit" type="number" inputmode="decimal" value="${r0(t.kcal)}" aria-label="kcal" /><span class="ms-kcal-l">kcal · tap to edit</span></div>
     <div class="ms-grid">
       <div class="macro-pill mp-p"><input class="ms-pedit" id="ms-pedit" type="number" inputmode="decimal" value="${r0(t.p)}" aria-label="protein grams" /><div class="k">protein · tap to edit</div></div>
       <div class="macro-pill mp-carb"><div class="v">${r0(t.c)}g</div><div class="k">carbs</div></div>
@@ -528,7 +671,7 @@ function renderCalendar(){
   // month workout tally by split
   const mCount={push:0,pull:0,legs:0}; let mTotal=0;
   const dim=new Date(calYear,calMonth+1,0).getDate();
-  for(let dn=1; dn<=dim; dn++){ const g=(DATA.days[dayKey(new Date(calYear,calMonth,dn))]||{}).gym; if(g&&mCount[g]!=null){ mCount[g]++; mTotal++; } }
+  for(let dn=1; dn<=dim; dn++){ const c=gymCat((DATA.days[dayKey(new Date(calYear,calMonth,dn))]||{}).gym); if(c&&mCount[c]!=null){ mCount[c]++; mTotal++; } }
   const mName=new Date(calYear,calMonth,1).toLocaleDateString(undefined,{month:'long'});
   $('#month-stat').innerHTML=`<div class="ms-big">${mTotal}<small> workout${mTotal===1?'':'s'} in ${mName}</small></div>
     <div class="ms-split">
@@ -555,9 +698,9 @@ function renderCalendar(){
     const el=document.createElement('div'); el.className='day-block';
     const isFuture=dObj>endToday;
     if (k===todayK) el.classList.add('today'); else if (isFuture && !has) el.classList.add('future');
-    if (gym && gym!=='rest') el.dataset.g=gym;
+    if (gym && gym!=='rest') el.dataset.g=gymCat(gym);
     const wd=dObj.toLocaleDateString(undefined,{weekday:'short'});
-    const gymLabel = gym ? GYM_LABEL[gym] : (has ? 'Rest' : (isFuture?'—':'·'));
+    const gymLabel = gym ? WORKOUT_LABEL[gym] : (has ? 'Rest' : (isFuture?'—':'·'));
     const stats = t && t.kcal>0 ? `${r0(t.kcal)} · ${r0(t.p)}g` : (isFuture?'planned':'no log');
     el.innerHTML=`<div class="db-date">${wd} ${dObj.getDate()}${k===todayK?' · today':''}</div>
       <div class="db-gym">${gymLabel}</div><div class="db-stats">${stats}</div>`;
@@ -580,9 +723,10 @@ function renderCalendar(){
    NAV + WIRING
    ============================================================ */
 function showView(name){
-  $('#view-today').classList.toggle('hidden', name!=='today');
-  $('#view-calendar').classList.toggle('hidden', name!=='calendar');
+  ['today','calendar','workout','directory'].forEach(v=>{ const el=$('#view-'+v); if(el) el.classList.toggle('hidden', v!==name); });
   if (name==='calendar') renderCalendar();
+  if (name==='workout') renderWorkout();
+  if (name==='directory') renderDirectory();
   window.scrollTo(0,0);
 }
 
@@ -591,9 +735,16 @@ function wire(){
   $('#btn-clear-day').onclick=()=>{
     const k=viewDateKey; const label = k===dayKey() ? 'today' : new Date(k).toLocaleDateString(undefined,{day:'numeric',month:'short'});
     if(confirm(`Clear all meals and gym for ${label}? This restarts the day.`)){
-      DATA.days[k]={ meals:{breakfast:[],lunch:[],dinner:[],snacks:[]}, gym:null }; save(); renderToday(); toast('Day cleared — fresh start.');
+      DATA.days[k]={ meals:{breakfast:[],lunch:[],dinner:[],snacks:[]}, gym:null, workout:null }; save(); renderToday(); toast('Day cleared — fresh start.');
     }
   };
+  $('#chooser-cancel').onclick=closeChooser;
+  $('#chooser-backdrop').onclick=e=>{ if(e.target.id==='chooser-backdrop') closeChooser(); };
+  $('#workout-back').onclick=()=>{ showView('today'); renderToday(); };
+  $('#workout-edit').onclick=()=>showView('directory');
+  $('#workout-done').onclick=finishWorkout;
+  $('#directory-back').onclick=()=>{ showView('today'); renderToday(); };
+  $('#btn-directory').onclick=()=>{ $('#settings-backdrop').classList.add('hidden'); showView('directory'); };
   $('#btn-calendar').onclick=()=>{ resetCalToToday(); showView('calendar'); };
   $('#month-prev').onclick=()=>{ if(calMonth===0){calMonth=11;calYear--;}else calMonth--; calWeekIdx=0; renderCalendar(); };
   $('#month-next').onclick=()=>{ if(calMonth===11){calMonth=0;calYear++;}else calMonth++; calWeekIdx=0; renderCalendar(); };
@@ -616,14 +767,13 @@ function wire(){
     if(!currentItems.length){ toast('Nothing to add'); return; }
     const day=getDay(viewDateKey);
     const slot=currentSlot;
-    // apply a manual protein edit (from the green box) onto the first item
-    const pedit=$('#ms-pedit');
-    if (pedit && currentItems.length){
-      const targetP=+pedit.value;
-      if (!isNaN(targetP)){
-        const delta=targetP - sumMeal(currentItems).p;
-        if (Math.abs(delta)>0.5){ const it0=currentItems[0]; const per=Object.assign({kcal:0,p:0,c:0,f:0}, it0.food&&it0.food.per); per.p=per.p+delta/((+it0.qty)||1); it0.food={per}; }
-      }
+    // apply manual kcal/protein edits (from the summary boxes) onto the first item
+    if (currentItems.length){
+      const it0=currentItems[0]; const cur=sumMeal(currentItems); const q=(+it0.qty)||1;
+      const per=Object.assign({kcal:0,p:0,c:0,f:0}, it0.food&&it0.food.per);
+      const kedit=$('#ms-kedit'); if (kedit && !isNaN(+kedit.value)) per.kcal += (+kedit.value - cur.kcal)/q;
+      const pedit=$('#ms-pedit'); if (pedit && !isNaN(+pedit.value)) per.p += (+pedit.value - cur.p)/q;
+      it0.food={per};
     }
     const added=currentItems.map(i=>({name:i.name,qty:i.qty,unit:i.unit,food:i.food}));
     const mealKcal=sumMeal(added).kcal;
@@ -656,12 +806,12 @@ function wire(){
   $('#btn-theme').onclick=()=>{ DATA.theme = DATA.theme==='yeagerist'?null:'yeagerist'; save(); applyTheme(); if(DATA.theme) toast('Yeagerists rise. 🩸'); };
   $('#btn-load-demo').onclick=()=>{ loadDemo(); save(); renderToday(); renderCalendar(); toast('Sample week loaded'); $('#settings-backdrop').classList.add('hidden'); showView('calendar'); };
   $('#btn-export').onclick=()=>{ const blob=new Blob([JSON.stringify(DATA,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='macro-tracker-backup-'+dayKey()+'.json'; a.click(); toast('Backup downloaded'); };
-  $('#btn-clear').onclick=()=>{ if(confirm('Tatakae… this erases everything, forever. Continue?')){ DATA=structuredClone(DEFAULT); save(); renderToday(); toast('The Rumbling passed. All data cleared.'); $('#settings-backdrop').classList.add('hidden'); } };
+  $('#btn-clear').onclick=()=>{ if(confirm('Tatakae… this erases everything, forever. Continue?')){ DATA=structuredClone(DEFAULT); loadStarterFoods(); DATA.seeded=true; seedExercises(); DATA.gymSeeded=true; save(); renderToday(); toast('The Rumbling passed. All data cleared.'); $('#settings-backdrop').classList.add('hidden'); } };
 }
 
 /* seed a realistic current week so the calendar isn't empty on first look */
 function loadDemo(){
-  const plan=['push','pull','legs',null,'push','pull','legs']; // rest days = no gym logged
+  const plan=['push-a','pull-a','legs-a',null,'push-b','pull-b','legs-b']; // rest days = no gym logged
   const now=new Date(); const monday=new Date(now); monday.setDate(now.getDate()-((now.getDay()+6)%7));
   plan.forEach((gym,i)=>{ const d=new Date(monday); d.setDate(monday.getDate()+i); if(d>now) return; const day=getDay(dayKey(d)); day.gym=gym;
     // one representative breakfast that roughly hits the targets
@@ -699,6 +849,7 @@ function localSummary(t){
 function closeSummary(){ $('#summary-backdrop').classList.add('hidden'); }
 
 /* ---------- boot ---------- */
-if (!DATA.seeded){ loadStarterFoods(); DATA.seeded=true; save(); }   // one-time: preload your foods
+if (!DATA.seeded){ loadStarterFoods(); DATA.seeded=true; save(); }        // one-time: preload your foods
+if (!DATA.gymSeeded || !DATA.exercises || !Object.keys(DATA.exercises).length){ seedExercises(); DATA.gymSeeded=true; save(); }  // preload the PPL split
 initCal(); wire(); applyTheme(); renderToday();
 if ('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }

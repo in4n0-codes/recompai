@@ -113,6 +113,66 @@ body[data-theme="yeagerist"] .ring-fg#ring-kcal { stroke: #e24b4a !important; }
 .gym-chip.sel[data-g="legs"] { background: var(--legs-bg); }
 .gym-chip.sel[data-g="rest"] { background: var(--rest-bg); }
 
+/* meal delete */
+.meal-del { background: none; border: none; color: var(--text-3); width: 30px; height: 30px; font-size: 16px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.meal-del:active { color: #F0997B; }
+
+/* ===== workout chooser ===== */
+#chooser-backdrop { align-items: center; padding: 24px; }
+.chooser-card { width: 100%; max-width: 360px; background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 20px; animation: slideUp .28s cubic-bezier(.2,.8,.2,1); }
+.chooser-title { font-size: 17px; font-weight: 600; text-align: center; margin-bottom: 16px; }
+.chooser-btns { display: flex; gap: 10px; margin-bottom: 12px; }
+.chooser-opt { flex: 1; padding: 20px 0; border-radius: 14px; font-size: 16px; font-weight: 600; background: var(--surface-2); border: 1.5px solid; }
+.chooser-opt[data-g="push"] { color: var(--push); border-color: var(--push); }
+.chooser-opt[data-g="pull"] { color: var(--pull); border-color: var(--pull); }
+.chooser-opt[data-g="legs"] { color: var(--legs); border-color: var(--legs); }
+.chooser-opt:active { transform: scale(.98); }
+
+/* ===== workout screen ===== */
+.workout-title { font-size: 20px; font-weight: 600; }
+.workout-date { font-size: 12px; color: var(--text-3); }
+.wk-ex { background: var(--surface); border-radius: 14px; padding: 14px; margin-bottom: 10px; }
+.wk-ex-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+.wk-ex-name { font-size: 15px; font-weight: 600; }
+.wk-ex-meta { font-size: 13px; color: var(--text-2); white-space: nowrap; }
+.wk-ex-meta .wk-w { color: var(--legs); font-weight: 600; }
+.set-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.set-box { width: 46px; height: 46px; border-radius: 12px; background: var(--surface-2); border: 1.5px solid var(--line); color: var(--text-3); font-size: 14px; font-weight: 600; }
+.set-box.on { background: var(--legs-bg); border-color: var(--legs); color: var(--legs); }
+.set-box.on::after { content: ' ✓'; font-size: 11px; }
+#workout-done { margin-top: 4px; }
+
+/* workout summary card (home + calendar day) */
+.ws-card { background: var(--surface); border-radius: 14px; padding: 12px 14px; margin-top: 8px; border-left: 3px solid var(--rest); }
+.ws-card[data-g="push"] { border-left-color: var(--push); }
+.ws-card[data-g="pull"] { border-left-color: var(--pull); }
+.ws-card[data-g="legs"] { border-left-color: var(--legs); }
+.ws-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.ws-title { font-size: 15px; font-weight: 600; }
+.ws-status { font-size: 12px; color: var(--text-2); background: var(--surface-2); padding: 3px 9px; border-radius: 20px; }
+.ws-row { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; padding: 3px 0; }
+.ws-name { color: var(--text); }
+.ws-meta { color: var(--text-3); white-space: nowrap; }
+.ws-open { margin-top: 10px; height: 38px; }
+
+/* ===== exercise directory ===== */
+.dir-note { font-size: 12px; color: var(--text-3); line-height: 1.5; margin-bottom: 14px; }
+.dir-sec { margin-bottom: 20px; }
+.dir-sec-title { font-size: 14px; font-weight: 600; padding: 6px 10px; border-radius: 8px; margin-bottom: 10px; display: inline-block; }
+.dir-sec-title[data-g="push"] { color: var(--push); background: var(--push-bg); }
+.dir-sec-title[data-g="pull"] { color: var(--pull); background: var(--pull-bg); }
+.dir-sec-title[data-g="legs"] { color: var(--legs); background: var(--legs-bg); }
+.dir-ex { background: var(--surface); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; }
+.dir-top { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.dir-name { flex: 1; font-weight: 500; }
+.dir-del { color: #F0997B; flex-shrink: 0; }
+.dir-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.dir-grid label, .dir-move { font-size: 11px; color: var(--text-3); display: flex; flex-direction: column; gap: 4px; }
+.dir-grid .field { padding: 8px; text-align: center; }
+.dir-move { margin-top: 8px; }
+.dir-move .field { width: 100%; }
+.dir-add { margin-top: 4px; height: 40px; }
+
 /* backdrop + sheet */
 .backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 40; display: flex; align-items: flex-end; justify-content: center; }
 .sheet { width: 100%; max-width: 460px; background: var(--surface); border-radius: 22px 22px 0 0; padding: 8px 18px calc(24px + env(safe-area-inset-bottom)); max-height: 92vh; overflow-y: auto; animation: slideUp .28s cubic-bezier(.2,.8,.2,1); }
@@ -170,6 +230,8 @@ textarea:focus, .field:focus { outline: none; border-color: var(--accent); }
 .macro-summary { background: var(--surface-2); border-radius: 14px; padding: 14px; margin-top: 6px; }
 .ms-top { display: flex; align-items: baseline; gap: 6px; margin-bottom: 12px; }
 .ms-kcal { font-size: 28px; font-weight: 700; }
+.ms-kedit { width: 84px; background: none; border: none; border-bottom: 1px dashed var(--text-3); color: var(--text); font-size: 28px; font-weight: 700; font-family: inherit; padding: 0; }
+.ms-kedit:focus { outline: none; border-bottom-color: var(--accent); }
 .ms-kcal-l { font-size: 13px; color: var(--text-3); }
 .ms-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 7px; }
 .ms-pedit { width: 100%; background: none; border: none; text-align: center; font-size: 15px; font-weight: 600; color: #97C459; font-family: inherit; padding: 0; }
